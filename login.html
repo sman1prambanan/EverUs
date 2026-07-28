@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Masuk EverUs</title>
+  <style>
+    :root {
+      font-family: Inter, system-ui, sans-serif;
+      background: #f5f5f7;
+      color: #1f2937;
+    }
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(180deg, #fffaf4 0%, #f5f5f7 100%);
+      padding: 16px;
+    }
+    .login-card {
+      width: min(460px, 100%);
+      background: white;
+      border-radius: 28px;
+      padding: 28px 24px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.08);
+    }
+    .login-card h1 {
+      margin: 0 0 8px;
+      font-size: 24px;
+    }
+    .login-card p {
+      margin: 0 0 24px;
+      color: #64748b;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    .field {
+      display: grid;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .field label {
+      font-size: 13px;
+      font-weight: 700;
+      color: #334155;
+    }
+    .field input {
+      width: 100%;
+      border: 1px solid #e2e8f0;
+      border-radius: 16px;
+      padding: 14px 16px;
+      font-size: 15px;
+      background: #f8fafc;
+      color: #0f172a;
+    }
+    .button {
+      width: 100%;
+      border: none;
+      border-radius: 16px;
+      padding: 14px;
+      background: #ff7a00;
+      color: white;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .message {
+      min-height: 22px;
+      color: #dc2626;
+      font-size: 13px;
+    }
+    .help {
+      margin-top: 18px;
+      color: #475569;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .help a {
+      color: #ff7a00;
+      text-decoration: none;
+      font-weight: 700;
+    }
+  </style>
+</head>
+<body>
+  <div class="login-card">
+    <h1>Masuk dengan Rekening</h1>
+    <p>Gunakan nomor rekening yang sudah terdaftar untuk masuk ke akun EverUs kamu.</p>
+    <div class="field">
+      <label for="account-number">Nomor rekening</label>
+      <input id="account-number" type="text" placeholder="9018 0323 0342" />
+    </div>
+    <button class="button" id="login-btn">Masuk</button>
+    <div class="message" id="login-message"></div>
+    <p class="help">Belum punya akun? Daftarkan via <a href="admin.html">Admin Panel</a>.</p>
+    <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;">
+    <details style="font-size: 12px; color: #64748b;">
+      <summary style="cursor: pointer; font-weight: 700; color: #475569;">📋 Lihat Akun Tersedia</summary>
+      <div id="account-list" style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #e5e7eb;">
+        <p style="margin: 0 0 8px;">Akun yang terdaftar:</p>
+        <div id="account-items" style="font-family: monospace; font-size: 11px; color: #1f2937;"></div>
+      </div>
+    </details>
+  </div>
+  <script>
+    const SHEET_ENDPOINT = 'https://script.google.com/macros/s/AKfycbxJeqJSQt7piGkguB62S1hXNhGyePbZWRPzknS0hSrUeU41AByMyciHHYfte2kRLddXgQ/exec';
+    const messageEl = document.getElementById('login-message');
+    const inputEl = document.getElementById('account-number');
+    const buttonEl = document.getElementById('login-btn');
+    const accountItemsEl = document.getElementById('account-items');
+
+    function normalizeAccount(value) {
+      return String(value || '').trim().replace(/\s+/g, '');
+    }
+
+    async function loadAccountList() {
+      try {
+        const url = new URL(SHEET_ENDPOINT);
+        url.searchParams.set('action', 'list');
+        const response = await fetch(url.toString());
+        if (!response.ok) throw new Error('Gagal koneksi');
+        const accounts = await response.json();
+        
+        if (!Array.isArray(accounts) || accounts.length === 0) {
+          accountItemsEl.innerHTML = '<p style="margin: 0; color: #dc2626;">Tidak ada akun terdaftar.</p>';
+          return;
+        }
+        
+        let html = '';
+        accounts.forEach(function(acc) {
+          if (acc.account) {
+            html += `<div style="margin: 6px 0; padding: 8px; background: #f8fafc; border-radius: 8px;">
+              <strong>${acc.account}</strong> - ${acc.name || '(Tanpa nama)'}
+            </div>`;
+          }
+        });
+        accountItemsEl.innerHTML = html || '<p style="margin: 0; color: #64748b;">Data akun kosong.</p>';
+      } catch (error) {
+        accountItemsEl.innerHTML = '<p style="margin: 0; color: #dc2626;">Gagal memuat daftar akun.</p>';
+        console.error('Gagal load account list:', error);
+      }
+    }
+
+    document.querySelector('details').addEventListener('toggle', function(e) {
+      if (e.target.open) {
+        loadAccountList();
+      }
+    });
+
+    async function login() {
+      const rawAccount = inputEl.value;
+      const account = normalizeAccount(rawAccount);
+      
+      if (!account) {
+        messageEl.textContent = 'Masukkan nomor rekening terlebih dahulu.';
+        return;
+      }
+      
+      messageEl.textContent = 'Memeriksa akun...';
+      console.log('Login attempt with account:', account);
+      
+      try {
+        const url = new URL(SHEET_ENDPOINT);
+        url.searchParams.set('action', 'get');
+        url.searchParams.set('account', account);
+        console.log('Fetching:', url.toString());
+        
+        const response = await fetch(url.toString());
+        if (!response.ok) throw new Error('Gagal koneksi');
+        const config = await response.json();
+        
+        console.log('Response:', config);
+        
+        if (!config || !config.account) {
+          messageEl.textContent = 'Nomor rekening tidak ditemukan. Coba lagi atau daftar di Admin Panel.';
+          return;
+        }
+        
+        window.location.href = `index.html?account=${encodeURIComponent(config.account)}`;
+      } catch (error) {
+        messageEl.textContent = 'Terjadi kesalahan, silakan coba lagi.';
+        console.error('Login error:', error);
+      }
+    }
+
+    buttonEl.addEventListener('click', login);
+    inputEl.addEventListener('keydown', function(event) {
+      if (event.key === 'Enter') login();
+    });
+  </script>
+</body>
+</html>
